@@ -72,14 +72,14 @@ public class TestbedSettings {
 
   private void populateDefaultSettings() {
     addSetting(new TestbedSetting(Hz, SettingType.ENGINE, 60, 1, 400));
-    addSetting(new TestbedSetting(PositionIterations, SettingType.ENGINE, 3, 0, 100));
-    addSetting(new TestbedSetting(VelocityIterations, SettingType.ENGINE, 8, 1, 100));
+    addSetting(new TestbedSetting(PositionIterations, SettingType.ENGINE, 100, 0, 100));
+    addSetting(new TestbedSetting(VelocityIterations, SettingType.ENGINE, 200, 1, 200));
     addSetting(new TestbedSetting(AllowSleep, SettingType.ENGINE, true));
     addSetting(new TestbedSetting(WarmStarting, SettingType.ENGINE, true));
-    addSetting(new TestbedSetting(ContinuousCollision, SettingType.ENGINE, true));
+    addSetting(new TestbedSetting(ContinuousCollision, SettingType.ENGINE, false));
     addSetting(new TestbedSetting(SubStepping, SettingType.ENGINE, false));
     addSetting(new TestbedSetting(DrawShapes, SettingType.DRAWING, true));
-    addSetting(new TestbedSetting(DrawJoints, SettingType.DRAWING, true));
+    addSetting(new TestbedSetting(DrawJoints, SettingType.DRAWING, false));
     addSetting(new TestbedSetting(DrawAABBs, SettingType.DRAWING, false));
     addSetting(new TestbedSetting(DrawContactPoints, SettingType.DRAWING, false));
     addSetting(new TestbedSetting(DrawContactNormals, SettingType.DRAWING, false));
