@@ -33,7 +33,7 @@ import org.jbox2d.testbed.framework.j2d.TestPanelJ2D;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.warrenfalk.jbox2d.ChainTest;
+import com.warrenfalk.jbox2d.RopeTest;
 
 /**
  * The entry point for the testbed application
@@ -52,7 +52,7 @@ public class TestbedMain {
     }
     TestbedModel model = new TestbedModel();
     model.addCategory("My Own Tests");
-    model.addTest(new ChainTest());
+    model.addTest(new RopeTest());
     TestbedPanel panel = new TestPanelJ2D(model);
     TestList.populateModel(model);
     JFrame testbed = new TestbedFrame(model, panel, UpdateBehavior.UPDATE_CALLED);
