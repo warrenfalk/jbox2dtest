@@ -65,6 +65,7 @@ public class RopeTest extends TestbedTest {
 		obstacle.createFixture(fd);
 		
 		dynamic.position = new Vec2(-20f, 19f);
+		dynamic.angularDamping = 0.999f;
 		weight = getWorld().createBody(dynamic);
 		fd.shape = weightShape;
 		fd.density = 20f;
