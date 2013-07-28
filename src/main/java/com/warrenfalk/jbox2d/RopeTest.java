@@ -6,6 +6,8 @@ import org.jbox2d.dynamics.Body;
 import org.jbox2d.dynamics.BodyDef;
 import org.jbox2d.dynamics.BodyType;
 import org.jbox2d.dynamics.FixtureDef;
+import org.jbox2d.dynamics.World;
+import org.jbox2d.dynamics.joints.Joint;
 import org.jbox2d.dynamics.joints.RevoluteJointDef;
 import org.jbox2d.dynamics.joints.RopeJointDef;
 import org.jbox2d.testbed.framework.TestbedTest;
@@ -13,15 +15,23 @@ import org.jbox2d.testbed.framework.TestbedTest;
 public class RopeTest extends TestbedTest {
 	
 	class Rope {
-		public Body head;
-		public Body tail;
+		public Body[] segments;
+		public Joint[] joints;
 	}
 	
-	final static int CHAIN = 0x2; // chains collide with the world, but chains don't collide with chains
+	Rope rope;
+	float thickness = 0.2f;
+	float resolution = 0.6f;
+	Body base;
+	Body weight;
+	
+	final static int ROPE = 0x2; // ropes collide with the world, but ropes don't collide with ropes
 
 	@Override
 	public void initTest(boolean deserialized) {
-		setTitle("Chain test");
+		setTitle("Rope test");
+		
+		rope = null;
 		
 		getWorld().setGravity(new Vec2(0, -10f));
 		
@@ -42,7 +52,7 @@ public class RopeTest extends TestbedTest {
 		fd.filter.maskBits = 0; // doesn't collide with anything
 
 		fixed.position.set(0, 0);
-		Body base = m_world.createBody(fixed);
+		base = m_world.createBody(fixed);
 		base.createFixture(fd);
 		
 		fixed.position.set(0, -5);
@@ -50,113 +60,121 @@ public class RopeTest extends TestbedTest {
 		fd.filter.maskBits = 0xFFFF; // collide with everything
 		obstacle.createFixture(fd);
 		
-		float thickness = 0.2f;
-		float resolution = 0.6f;
-		Rope rope = CreateRope(thickness, resolution, new Vec2(0, 0), new Vec2(resolution * 30f, 0));
-		
-		RevoluteJointDef jd = new RevoluteJointDef();
-		jd.initialize(base, rope.head, new Vec2());
-		jd.collideConnected = false;
-		getWorld().createJoint(jd);
-		
-		dynamic.position = new Vec2(rope.tail.getPosition());
-		dynamic.position.addLocal(new Vec2(3f, 0));
-		Body weight = getWorld().createBody(dynamic);
+		dynamic.position = new Vec2(-20f, 19f);
+		weight = getWorld().createBody(dynamic);
 		fd.shape = weightShape;
 		fd.density = 20f;
-		fd.filter.maskBits = 0xFFFF & ~CHAIN;
-		fd.filter.categoryBits = CHAIN; // the thing on the end of the chain collides like the chain
+		fd.filter.maskBits = 0xFFFF & ~ROPE;
+		fd.filter.categoryBits = ROPE; // the thing on the end of the rope collides like the rope
 		weight.createFixture(fd);
 		
-		jd.initialize(weight, rope.tail, rope.tail.getPosition().add(new Vec2(0f, 0)));
-		jd.collideConnected = false;
-		getWorld().createJoint(jd);
-
+	}
+	
+	@Override
+	public void keyPressed(char keyChar, int keyCode) {
+		switch (keyChar) {
+		case 'j':
+			if (rope == null)
+				rope = createRope(getWorld(), thickness, resolution, base, weight, new Vec2(0, 0), weight.getWorldPoint(new Vec2(3f, 0f)));
+			else {
+				for (Joint joint : rope.joints)
+					if (joint != null)
+						getWorld().destroyJoint(joint);
+				for (Body segment : rope.segments)
+					getWorld().destroyBody(segment);
+				rope = null;
+			}
+		}
 	}
 
-	private Rope CreateRope(float thickness, float resolution, Vec2 from, Vec2 to) {
-		Vec2 vector = to.sub(from);
-		float length = vector.length();
-		int count = (int)Math.ceil(length / resolution);
-		
-		Vec2 segVector = new Vec2(vector);
-		segVector.normalize();
-		
-		PolygonShape linkShape = new PolygonShape();
-		linkShape.setAsBox(resolution / 2f, thickness / 2f);
-		
+	private Rope createRope(World world, float thickness, float resolution, Body fromBody, Body toBody, Vec2 from, Vec2 to) {
 		Rope rope = new Rope();
 		
-		Body[] links = new Body[count];
+		Vec2 vector = to.sub(from);
+		float length = vector.length();
+		int count = (int)Math.floor(length / resolution);
+		resolution = length / (float)count;
+		
+		rope.segments = new Body[count];
+		rope.joints = new Joint[count * 2 + 2];
+		
+		Vec2 direction = new Vec2(vector);
+		direction.normalize();
+		
+		float angle = (float)Math.atan2(direction.y, direction.x);
+		
+		PolygonShape segmentShape = new PolygonShape();
+		segmentShape.setAsBox(resolution / 2f, thickness / 2f);
+		
+		BodyDef segmentBodyDef = new BodyDef();
+		segmentBodyDef.type = BodyType.DYNAMIC;
+		segmentBodyDef.linearDamping = 0.999f;
+		segmentBodyDef.angularDamping = 0.999f;
+		segmentBodyDef.angle = angle;
+
+		FixtureDef segmentFixture = new FixtureDef();
+		segmentFixture.shape = segmentShape;
+		segmentFixture.restitution = 0f;
+		segmentFixture.density = 9f;
+		segmentFixture.filter.categoryBits = ROPE;
+		segmentFixture.filter.maskBits = 0xFFFF & ~ROPE; // collide with anything, except other ropes
 		
 		int i;
+		Body prev = fromBody;
 		for (i = 0; i < count; i++) {
-			BodyDef bd = new BodyDef();
-			bd.linearDamping = 0.999f;
-			bd.type = BodyType.DYNAMIC;
-			bd.angularDamping = 0.999f;
-			float x = from.x + segVector.x * resolution * i;
-			float y = from.y + segVector.y * resolution * i;
-			bd.position.set(x + (resolution * 0.5f), y);
+			segmentBodyDef.position = direction.mul(resolution * (i + 0.5f));
 			
-			FixtureDef fd = new FixtureDef();
-			fd.shape = linkShape;
-			fd.restitution = 0f;
-			fd.density = 9f;
-			fd.filter.categoryBits = CHAIN;
-			fd.filter.maskBits = 0xFFFF & ~CHAIN; // collide with anything, except other chains
+			Body segment = rope.segments[i] = world.createBody(segmentBodyDef);
+			segment.createFixture(segmentFixture);
 			
-			Body link = getWorld().createBody(bd);
-			links[i] = link;
-			link.createFixture(fd);
+			RevoluteJointDef jd = new RevoluteJointDef();
+			jd.initialize(segment, prev, direction.mul(resolution * i));
+			jd.collideConnected = false;
+			rope.joints[i] = world.createJoint(jd);
 			
-			if (i == 0) {
-				rope.head = link;
+			if (i % 2 == 1) {
+				// create a rope joint from each body to every other segment
+				// necessary to prevent stretching even when middle of rope is obstructed
+				RopeJointDef rj = new RopeJointDef();
+				rj.bodyA = segment;
+				rj.localAnchorA.set(0, 0);
+				rj.collideConnected = false;
+				
+				rj.bodyB = fromBody;
+				rj.localAnchorB.set(fromBody.getLocalPoint(from));
+				rj.maxLength = rj.bodyA.getWorldPoint(rj.localAnchorA).sub(from).length();
+				rope.joints[i + count] = world.createJoint(rj);
+				
+				rj.bodyB = toBody;
+				rj.localAnchorB.set(toBody.getLocalPoint(to));
+				rj.maxLength = rj.bodyA.getWorldPoint(rj.localAnchorA).sub(to).length();
+				rope.joints[i + count - 1] = world.createJoint(rj);
 			}
-			else {
-				RevoluteJointDef jd = new RevoluteJointDef();
-				jd.initialize(rope.tail, link, new Vec2(x, y));
-				getWorld().createJoint(jd);
-			}
-			rope.tail = link;
+			
+			prev = segment;
 		}
 		
-		for (i = 3; i < (count - 3); i += 2) {
-			RopeJointDef rj = new RopeJointDef();
-			rj.bodyA = rope.tail;
-			rj.bodyB = links[i];
-			rj.localAnchorA.set(0, 0);
-			rj.localAnchorB.set(0, 0);
-			rj.maxLength = rj.bodyA.getPosition().sub(rj.bodyB.getPosition()).length();
-			rj.collideConnected = false;
-			getWorld().createJoint(rj);
-			
-			rj = new RopeJointDef();
-			rj.bodyA = rope.head;
-			rj.bodyB = links[i];
-			rj.localAnchorA.set(0, 0);
-			rj.localAnchorB.set(0, 0);
-			rj.maxLength = rj.bodyA.getPosition().sub(rj.bodyB.getPosition()).length();
-			rj.collideConnected = false;
-			getWorld().createJoint(rj);
-		}
+		RevoluteJointDef jd = new RevoluteJointDef();
+		jd.initialize(toBody, prev, direction.mul(resolution * i));
+		jd.collideConnected = false;
+		rope.joints[count * 2 + 1] = world.createJoint(jd);
 		
+		// create the final rope joint between the from and to
 		RopeJointDef rj = new RopeJointDef();
-		rj.bodyA = rope.head;
-		rj.bodyB = rope.tail;
-		rj.localAnchorA.set(0, 0);
-		rj.localAnchorB.set(0, 0);
-		rj.maxLength = rope.head.getPosition().sub(rope.tail.getPosition()).length();
+		rj.bodyA = fromBody;
+		rj.bodyB = toBody;
+		rj.localAnchorA.set(fromBody.getLocalPoint(from));
+		rj.localAnchorB.set(toBody.getLocalPoint(to));
+		rj.maxLength = from.sub(to).length();
 		rj.collideConnected = false;
-		getWorld().createJoint(rj);
+		rope.joints[count * 2] = world.createJoint(rj);
 		
 		return rope;
-		
 	}
 
 	@Override
 	public String getTestName() {
-		return "Chain";
+		return "Rope";
 	}
 
 }
