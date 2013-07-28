@@ -102,8 +102,10 @@ public class RopeTest extends TestbedTest {
 		Vec2 strikePoint;
 		Vec2 normal;
 		float fraction;
+		Body fromBody;
 		
-		public RopeRaycast(World world, Vec2 from, float angle, float maxLength) {
+		public RopeRaycast(World world, Body fromBody, Vec2 from, float angle, float maxLength) {
+			this.fromBody = fromBody;
 			Vec2 to = from.add(new Vec2((float)Math.cos(angle), (float)Math.sin(angle)).mul(17f));
 			world.raycast(this, from, to);
 			if (strikePoint == null)
@@ -112,6 +114,8 @@ public class RopeTest extends TestbedTest {
 
 		@Override
 		public float reportFixture(Fixture fixture, Vec2 point, Vec2 normal, float fraction) {
+			if (fixture != null && fixture.getBody() == fromBody)
+				return -1;
 			this.fixture = fixture;
 			this.strikePoint = point;
 			this.normal = normal;
@@ -124,9 +128,11 @@ public class RopeTest extends TestbedTest {
 		// for now this is instant, find a place for the rope to strike, then strike there.
 		// find a strike point for the rope
 		Vec2 from = fromBody.getWorldPoint(localFrom);
-		RopeRaycast rrc = new RopeRaycast(world, from, angle, 60f);
+		RopeRaycast rrc = new RopeRaycast(world, fromBody, from, angle, 60f);
 		
-		return createRope(world, thickness, resolution, fromBody, rrc.fixture.getBody(), from, rrc.strikePoint);
+		if (rrc.fixture != null)
+			return createRope(world, thickness, resolution, fromBody, rrc.fixture.getBody(), from, rrc.strikePoint);
+		return null;
 	}
 	
 	private Rope createRope(World world, float thickness, float resolution, Body fromBody, Body toBody, Vec2 from, Vec2 to) {
